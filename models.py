@@ -5,7 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 from pytz import timezone
 
-# ユーザーモデル
+# ユーザーテーブル
 class User(UserMixin, db.Model):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
@@ -26,6 +26,7 @@ class User(UserMixin, db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+# 体調テーブル
 class HealthRecord(db.Model):
     __tablename__ = 'health_record'
     id = db.Column(db.Integer, primary_key=True)
@@ -36,9 +37,11 @@ class HealthRecord(db.Model):
     cough = db.Column(db.String(100))
     selected_parts = db.Column(db.JSON)
     date = db.Column(db.DateTime, default=lambda: datetime.now(timezone('Asia/Tokyo')))  # 日本の標準時間でのデフォルト値
+    flag = db.Column(db.Boolean, default=False) # 不調フラグ
     def __repr__(self):
         return f'<HealthRecord {self.id} by User {self.user_id}>'
 
+# 部署名テーブル
 class Department(db.Model):
     __tablename__ = 'departments'
 
@@ -48,3 +51,10 @@ class Department(db.Model):
 
     def __repr__(self):
         return f'<Department {self.name}>'
+
+# お知らせテーブル
+class Announcement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)

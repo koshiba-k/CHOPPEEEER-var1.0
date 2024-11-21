@@ -1,13 +1,17 @@
 # routes.py
+import json, re, pytz
+from datetime import datetime, timedelta
 from flask import render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
-from app import app, db, login_manager
-from models import User, HealthRecord ,Department 
-from forms import LoginForm, AddEmployeeForm, EmployeeForm
-from datetime import datetime, timedelta
-import json, re
+from sqlalchemy import Date, func
+from sqlalchemy.orm import aliased
+from sqlalchemy.sql import or_
 from sqlalchemy.exc import IntegrityError
-import pytz 
+
+from app import app, db, login_manager
+from models import User, HealthRecord ,Department, Announcement
+from forms import LoginForm, AddEmployeeForm, EmployeeForm
+
 
 
 # 日本語部門名取得関数を定義
@@ -33,6 +37,7 @@ def get_last_registered_employee():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# パスワードの検証
 def validate_password(password):
     if 4 <= len(password) <= 16 and any(c.islower() for c in password) and any(c.isdigit() for c in password):
         return True
@@ -66,7 +71,8 @@ def logout():
 @app.route('/index')
 @login_required
 def index():
-    return render_template('index.html')
+    announcements = Announcement.query.all()  # すべてのお知らせを取得
+    return render_template('index.html', announcements=announcements)
 
 # 健康登録ページのルート
 @app.route('/health')
@@ -115,12 +121,12 @@ def health_result():
     }
     return redirect(url_for('display_health_result'))
 
+# 健康結果ページのルート
 @app.route('/display_health_result')
 @login_required
 def display_health_result():
     result_data = session.get('result_data', {})
     return render_template('health_result.html', result_data=result_data)
-
 
 # 社員情報閲覧ページのルート
 @app.route("/view_employee", methods=["GET"])
@@ -131,20 +137,46 @@ def view_employee():
         return check_result  # アクセス拒否の場合はリダイレクト
 
     query = request.args.get('query', '').strip()
-    employees = User.query.filter(
-        (User.employee_number.like(f'%{query}%')) |
-        (User.name.like(f'%{query}%')) |
-        (User.department.like(f'%{query}%'))
-    ).all()
+    date_query = request.args.get('date', '').strip()
     
+    # 日付が指定されていない場合、今日の日付に設定
+    if not date_query:
+        date_query = datetime.now().strftime('%Y-%m-%d')
+    
+    # `date_query` を datetime 型に変換
+    date_query_obj = datetime.strptime(date_query, '%Y-%m-%d').date()
+
+    # 部署テーブルとエイリアスを結合
+    department_alias = aliased(Department)
+
+    # 外部結合して検索処理
+    employees = (
+        db.session.query(
+            User.id,
+            User.employee_number,
+            User.department,
+            User.name,
+            User.phone,
+            HealthRecord.flag,
+            department_alias.name.label('department_name')  # 部署名を取得
+        )
+        .join(HealthRecord, HealthRecord.user_id == User.id, isouter=True)  # 外部結合で健康情報を結びつけ
+        .join(department_alias, User.department == department_alias.abbreviation)  # 部署略称で結合
+        .filter(
+            or_(
+                User.employee_number.like(f'%{query}%'),
+                User.name.like(f'%{query}%'),
+                department_alias.name.like(f'%{query}%')
+            ),
+            func.date(HealthRecord.date) == date_query_obj  # `date()` で日付部分を比較
+        )
+        .all()
+    )
+
     if not employees:
         flash('指定された社員は見つかりませんでした。', 'info')  # 検索結果が空の場合にメッセージを表示
 
-    for employee in employees:
-        # 日本語の部署名を取得して追加
-        employee.department_name_jp = get_japanese_department_name(employee.department)
-
-    today = datetime.now()  # Get the current date
+    today = datetime.now()
     return render_template('view_employee.html', employees=employees, today=today)
 
 
@@ -217,10 +249,12 @@ def get_employee_temperature_data(user_id):
             data_jst.append(data[index])
         else:
             data_jst.append(None)  # データがない場合はNoneを追加
+    
+    del labels[0]
+    del data_jst[0]
+    del average_data[0]
 
     return jsonify({'labels': labels, 'data': data_jst, 'average': average_data})
-
-
 
 # 特定の社員の健康記録を取得するAPIのルート
 @app.route('/api/health_record', methods=['GET'])
@@ -228,27 +262,20 @@ def get_health_record():
     user_id = request.args.get('user_id')  
     start = request.args.get('start')
     end = request.args.get('end')
-    jst = pytz.timezone('Asia/Tokyo')
 
-    # start と end を日本時間 (JST) から UTC に変換
     start_dt_jst = datetime.strptime(start, '%Y-%m-%dT%H:%M:%S.%fZ')
     end_dt_jst = datetime.strptime(end, '%Y-%m-%dT%H:%M:%S.%fZ')
 
-    start_dt_utc = jst.localize(start_dt_jst).astimezone(pytz.utc)
-    end_dt_utc = jst.localize(end_dt_jst).astimezone(pytz.utc)
-    
     health_records = HealthRecord.query.filter(
         HealthRecord.user_id == user_id,
-        HealthRecord.date >= start_dt_utc,
-        HealthRecord.date <= end_dt_utc
+        HealthRecord.date >= start_dt_jst,
+        HealthRecord.date <= end_dt_jst
     ).all()
 
-    
     if health_records:
         throat_jp = "ない" if health_records[0].throat == "normal" else "痛い"
         fever_jp = "ない" if health_records[0].fever == "normal" else "高い"
         cough_jp = "ない" if health_records[0].cough == "no" else "ある"
-        
         # selected_partsが空の場合は'なし'と表示
         selected_parts_jp = 'なし' if not health_records[0].selected_parts else health_records[0].selected_parts
         
@@ -263,8 +290,6 @@ def get_health_record():
     else:
         return jsonify({}), 404
 
-
-
 # 管理者画面のルート
 @app.route("/admin")
 @login_required
@@ -275,7 +300,6 @@ def admin():
     total_admins = User.query.filter_by(is_admin=True).count()
 
     return render_template('admin.html', total_employees=total_employees, total_admins=total_admins)
-
 
 # 社員登録ページのルート
 @app.route("/add_employee", methods=["GET", "POST"])
@@ -328,13 +352,9 @@ def add_employee():
                 is_admin="あり" if new_employee.is_admin else "なし"
             )
         except IntegrityError:
-            db.session.rollback()  # Roll back the session on error
+            db.session.rollback()
             form.email.errors.append('登録中にエラーが発生しました。社員番号、メールアドレス、または電話番号が重複している可能性があります。')
-
-    # Check for form errors and flash them
     return render_template('add_employee.html', form=form)
-
-
 
 # 社員削除ページのルート
 @app.route('/delete_employee', methods=['GET', 'POST'])
@@ -374,10 +394,8 @@ def delete_employee():
                 department_name_jp=department_name_jp,
                 employee_name=employee_name  # 社員名も渡す
             )
-    
     # GET リクエストの場合、またはPOSTで検索した社員情報を表示
     return render_template('delete_employee.html', employee=employee, department_name_jp=department_name_jp)
-
 
 # 特定の社員の体温グラフページのルート
 # 一般ユーザーは自分のみ
@@ -390,7 +408,6 @@ def employee_graph(employee_id):
 
     employee = User.query.get_or_404(employee_id)
     return render_template('graph.html', employee=employee)
-
 
 # 基本情報変更ページのルート
 @app.route('/change_info/<int:employee_id>', methods=['GET', 'POST'])
@@ -447,8 +464,6 @@ def change_info(employee_id):
 
     return render_template('change_info.html', form=form)
 
-
-
 #パスワード変更のルート
 @app.route('/change_password/<int:employee_id>', methods=['GET', 'POST'])
 @login_required
@@ -478,13 +493,12 @@ def change_password(employee_id):
             return redirect(url_for('change_password', employee_id=employee_id))
 
         # パスワードを設定
-        employee.set_password(new_password)  # ここでパスワードをハッシュ化することを確認してください
+        employee.set_password(new_password)
         db.session.commit()
 
         return redirect(url_for('change_password_result'))  # 結果ページにリダイレクト
 
     return render_template('change_password.html', employee=employee)
-
 
 # パスワード変更結果ページのルート
 @app.route('/change_password/result')
@@ -505,13 +519,49 @@ def update_employee_info():
         employee_number = request.form.get('employee_number')
         employee_to_update = User.query.filter_by(employee_number=employee_number).first()
 
-        
         if employee_to_update:
             return redirect(url_for('change_info', employee_id=employee_to_update.id))
         else:
             flash('指定された社員番号は見つかりませんでした。', 'error')
 
     return render_template('update_employee_info.html', employee=employee_to_update)
+
+# お知らせ管理ページ
+@app.route('/admin/announcements', methods=['GET', 'POST'])
+@login_required
+def manage_announcements():
+    if not current_user.is_admin:
+        flash("管理者のみアクセス可能です。", "error")
+        return redirect(url_for('home'))
+    
+    if request.method == 'POST':
+        title = request.form['title']
+        content = request.form['content']
+        
+        new_announcement = Announcement(title=title, content=content)
+        db.session.add(new_announcement)
+        db.session.commit()
+        
+        flash("お知らせを作成しました。", "success")
+        return redirect(url_for('manage_announcements'))
+    
+    announcements = Announcement.query.order_by(Announcement.created_at.desc()).all()
+    return render_template('manage_announcements.html', announcements=announcements)
+
+# お知らせ削除
+@app.route('/admin/announcements/delete/<int:id>', methods=['POST'])
+@login_required
+def delete_announcement(id):
+    if not current_user.is_admin:
+        flash("管理者のみアクセス可能です。", "error")
+        return redirect(url_for('home'))
+    
+    announcement = Announcement.query.get_or_404(id)
+    db.session.delete(announcement)
+    db.session.commit()
+    
+    flash("お知らせを削除しました。", "success")
+    return redirect(url_for('manage_announcements'))
 
 # 404エラーのハンドリング
 @app.errorhandler(404)

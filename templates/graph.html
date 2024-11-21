@@ -7,20 +7,23 @@
     <div class="container" data-employee-id="{{ employee.id }}">
         <h1>体温グラフ</h1>
         <h3>{{ employee.name }}さんの記録</h3>
-        <div class="backbutton">
+        <div class="backbutton ">
             <button onclick="window.history.back();">戻る</button>
         </div>
 
-        <label for="periodSelect">表示期間を選択:</label>
-        <select id="periodSelect" onchange="updateChart()">
-            <option value="1w">1週間</option>
-            <option value="2w">2週間</option>
-            <option value="1m">1か月</option>
-            <option value="3m">3か月</option>
-            <option value="1y">1年</option>
-        </select>
 
-        <canvas id="temperatureChart" width="400" height="200"></canvas>
+        <div class="period-select-group">
+            <label for="periodSelect">表示期間を選択:</label>
+            <select class="period" id="periodSelect" onchange="updateChart()">
+                <option value="1w">1週間</option>
+                <option value="2w">2週間</option>
+                <option value="1m">1か月</option>
+                <option value="3m">3か月</option>
+                <option value="1y">1年</option>
+            </select>
+        </div>
+
+        <canvas id="temperatureChart"></canvas>
 
         <div id="healthRecordDetails" style="margin-top: 20px;"></div>
     </div>
@@ -38,6 +41,22 @@
                     return response.json();
                 });
         }
+        // 初回ロード時とリサイズ時に高さを調整
+        function adjustChartHeight() {
+            const canvas = document.getElementById('temperatureChart');
+            if (window.innerWidth < 768) {
+                canvas.style.height = '400px'; // スマホ用高さ
+            } else {
+                canvas.style.height = '150px'; // パソコン用高さ
+            }
+        }
+
+        // 初回ロード時に高さを調整
+        window.addEventListener('DOMContentLoaded', () => {
+            adjustChartHeight();
+            const employeeId = document.querySelector('.container').getAttribute('data-employee-id');
+            renderChart(employeeId);
+        });
 
         function renderChart(employeeId) {
             const ctx = document.getElementById('temperatureChart').getContext('2d');
@@ -186,5 +205,6 @@
                     `;
                 });
         }
+
     </script>
 {% endblock %}

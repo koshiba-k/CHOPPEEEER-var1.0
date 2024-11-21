@@ -1,0 +1,48 @@
+<!-- templates/manage_announcements.html -->
+{% extends "base.html" %}
+{% block title %}お知らせ管理{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4 text-center">お知らせ管理</h1>
+    {% for message in get_flashed_messages() %}
+        <div class="flash-message">{{ message }}</div>
+    {% endfor %}
+    <!-- New announcement form -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form action="{{ url_for('manage_announcements') }}" method="POST">
+                <div class="form-group">
+                    <label for="title">タイトル</label>
+                    <input type="text" name="title" id="title" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="content">内容</label>
+                    <textarea name="content" id="content" class="form-control" rows="3" required></textarea>
+                </div>
+                <button type="submit" class="btn btn-info mt-3">お知らせを追加</button>
+                <a class="btn btn-secondary" href="{{ url_for('admin') }}">管理者ダッシュボードに戻る</a>
+            </form>
+        </div>
+    </div>
+
+    <!-- Existing announcements list -->
+    <h2 class="text-center">既存のお知らせ</h2>
+    <ul class="list-group mb-4">
+        {% for announcement in announcements %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <h5>{{ announcement.title }}</h5>
+                    <p>{{ announcement.content }}</p>
+                    <small class="text-muted">投稿日: {{ announcement.created_at.strftime('%Y-%m-%d') }}</small>
+                </div>
+                <form action="{{ url_for('delete_announcement', id=announcement.id) }}" method="POST" onsubmit="return confirm('本当に削除しますか？');">
+                    <button type="submit" class="delete-btn">削除</button>
+                </form>
+            </li>
+        {% else %}
+            <p class="list-group-item text-center">現在お知らせはありません。</p>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}

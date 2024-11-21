@@ -13,6 +13,7 @@
         {% for message in get_flashed_messages() %}
             <div class="flash-message">{{ message }}</div>
         {% endfor %}
+        <div class="contain">
         {% if employee %}
             <h2>社員情報</h2>
             <p><strong>社員番号:</strong> {{ employee.employee_number }}</p>
@@ -20,13 +21,16 @@
             <p><strong>部署:</strong> {{ department_name_jp }}</p>  <!-- 日本語の部門名を表示 -->
             <p><strong>電話番号:</strong> {{ employee.phone }}</p>
             <p><strong>メールアドレス:</strong> {{ employee.email }}</p>
+        
 
-            <form method="POST" action="{{ url_for('delete_employee') }}" class="delete">
+            <!-- 削除フォーム -->
+            <form method="POST" action="{{ url_for('delete_employee') }}" class="delete" onsubmit="return confirm('本当に削除しますか？');">
                 <input type="hidden" name="employee_number" value="{{ employee.employee_number }}">
                 <button type="submit" name="action" value="delete" class="delete-btn">削除</button>
             </form>
         {% endif %}
-        <div class="button-group">
+        </div>
+        <div class="button-group backbottoon_2">
             <a class="btn btn-secondary" href="{{ url_for('admin') }}">管理者ダッシュボードに戻る</a>
         </div>
     </div>

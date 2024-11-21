@@ -6,17 +6,21 @@
 {% block content %}
     <div class="container">
         <h1>社員情報一覧</h1>
+
         <!-- 検索フォーム -->
-        <form method="GET" action="{{ url_for('view_employee') }}">
-            <div class="input-group mb-3">
-                <input type="text" class="form-control" placeholder="社員番号、名前、部署で検索" name="query" value="{{ request.args.get('query', '') }}">
-                <button class="btn btn-primary" type="submit">検索</button>
+        <form method="GET" action="{{ url_for('view_employee') }}" id="employee-search-form" class="d-flex align-items-center mb-3">
+            <div class="input-group mb-3 mr-2">
+                <input type="text" class="form-control" placeholder="社員番号、名前, 部署で検索" name="query" value="{{ request.args.get('query', '') }}" style="max-width: 400px;">
             </div>
-            <div class="input-group mb-3">
-                <input type="date" class="form-control" name="date" value="{{ request.args.get('date', today.strftime('%Y-%m-%d')) }}">
-                <button class="btn btn-secondary" type="submit">日付で検索</button>
+
+            <div class="input-group mb-3 mr-2">
+                <input type="date" class="form-control" id="date-input" name="date" value="{{ request.args.get('date', today.strftime('%Y-%m-%d')) }}" style="max-width: 400px;">
             </div>
+
+            <button class="btn btn-primary" type="submit">検索</button>
         </form>
+
+        <!-- 結果表示テーブル -->
         <table class="table">
             <thead>
                 <tr>
@@ -29,12 +33,12 @@
             </thead>
             <tbody>
                 {% for employee in employees %}
-                <tr style="{% if employee.is_unwell %}background-color: #eda994;{% endif %}">
+                <tr {% if employee.flag %} style="background-color: #f8d7da;" {% endif %}>
                     <td>{{ employee.employee_number }}</td>
                     <td>{{ employee.name }}</td>
                     <td>{{ employee.phone }}</td>
-                    <td>{{ employee.department_name_jp }}</td>
-                    <td>
+                    <td>{{ employee.department_name }}</td>
+                    <td style="text-align: center;"> <!-- 中央寄せ -->
                         <a href="{{ url_for('employee_graph', employee_id=employee.id) }}" class="btn btn-primary">体温グラフを見る</a>
                         <a href="{{ url_for('change_info', employee_id=employee.id) }}" class="btn btn-secondary">基本情報変更</a>
                         <a href="{{ url_for('change_password', employee_id=employee.id) }}" class="btn btn-warning">パスワード変更</a>
@@ -43,9 +47,58 @@
                 {% endfor %}
             </tbody>
         </table>
+
         <!-- Flash messages -->
         {% for message in get_flashed_messages() %}
             <div class="flash-message">{{ message }}</div>
         {% endfor %}
     </div>
+
+    <script>
+         // ページロード時にローカルストレージから日時を取得して設定
+        window.onload = function() {
+            const savedDate = localStorage.getItem('selectedDate');
+            if (savedDate) {
+                document.getElementById('date-input').value = savedDate;
+            }
+        }
+
+        // フォーム送信時に日時をローカルストレージに保存
+        document.querySelector('form').addEventListener('submit', function() {
+            const selectedDate = document.getElementById('date-input').value;
+            localStorage.setItem('selectedDate', selectedDate);
+        });
+    </script>
+
+    <style>
+        /* このスタイルはview_employee.htmlにのみ適用されます */
+        #employee-search-form {
+            display: flex;
+            align-items: center;
+            justify-content: center; /* 水平中央寄せ */
+            gap: 20px; /* 要素間の隙間 */
+        }
+
+        #employee-search-form .input-group {
+            margin-bottom:0px; /* 下のマージンを削除 */
+        }
+
+        /* メディアクエリ: 小さな画面の場合は縦並び */
+        @media (max-width: 768px) {
+            #employee-search-form {
+                flex-direction: column;
+                align-items: center;
+                gap: 0px;
+            }
+
+            #employee-search-form .input-group {
+                margin-bottom: 0px; /* 縦並び時に間隔を空ける */
+            }
+
+            #employee-search-form .mr-2 {
+                margin-right: 0; /* 右のマージンを削除 */
+            }
+        }
+    </style>
+
 {% endblock %}
