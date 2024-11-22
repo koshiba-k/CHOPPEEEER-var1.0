@@ -57,7 +57,8 @@
             const employeeId = document.querySelector('.container').getAttribute('data-employee-id');
             renderChart(employeeId);
         });
-
+        window.addEventListener('resize', adjustChartHeight);
+        
         function renderChart(employeeId) {
             const ctx = document.getElementById('temperatureChart').getContext('2d');
             const period = document.getElementById('periodSelect').value;
@@ -147,11 +148,6 @@
             const employeeId = document.querySelector('.container').getAttribute('data-employee-id');
             renderChart(employeeId);
         }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            const employeeId = document.querySelector('.container').getAttribute('data-employee-id');
-            renderChart(employeeId);
-        });
 
         function displayAverageTemperature(date, averageTemperature) {
             document.getElementById('healthRecordDetails').innerHTML = `
