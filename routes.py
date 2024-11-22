@@ -98,6 +98,19 @@ def health_result():
     selected_parts = json.loads(selected_parts_json) if selected_parts_json else []
     selected_parts_sum = ", ".join(selected_parts)  # リストを文字列に変換
 
+    # 不調フラグ
+    Healthflag = False
+
+    try:
+        # temperature を float に変換
+        temperature = float(temperature)
+    except ValueError:
+        # temperature が数値に変換できない場合のエラーハンドリング
+        temperature = 0.0  # または適切なデフォルト値を設定
+
+    if temperature >= 37.2 or throat != "normal" or fever != "normal" or cough != "no" or selected_parts_json != "":
+        Healthflag = True
+    
     # 健康記録をデータベースに保存
     new_record = HealthRecord(
         user_id=current_user.id,
@@ -105,7 +118,8 @@ def health_result():
         throat=throat,
         fever=fever,
         cough=cough,
-        selected_parts=selected_parts_sum
+        selected_parts=selected_parts_sum,
+        flag=Healthflag
     )
     
     db.session.add(new_record)
