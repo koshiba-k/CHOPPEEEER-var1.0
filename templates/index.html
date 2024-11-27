@@ -19,7 +19,7 @@
             {% for announcement in announcements[::-1] %}  <!-- 新しい情報が上に来るように逆順に表示 -->
                 <div class="announcement-item mb-3">
                     <h5 class="announcement-item-title">{{ announcement.title }}</h5>
-                    <p class="announcement-item-content">{{ announcement.content }}</p>
+                    <p class="announcement-item-content">{{ announcement.content|safe }}</p>
                     <small class="text-muted announcement-item-date">投稿日：{{ announcement.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
                 </div>
             {% endfor %}
